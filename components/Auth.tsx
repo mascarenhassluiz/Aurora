@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { Logo } from './Logo';
 import { supabase } from '../supabaseClient';
-import { Mail, Lock, User as UserIcon, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, ArrowRight, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -14,15 +14,17 @@ export const Auth = ({ onLogin }: AuthProps) => {
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
     setLoading(true);
 
     try {
       if (isLogin) {
-        // LOGIN COM SUPABASE
+        // --- LOGIN ---
         const { data, error } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
@@ -31,24 +33,32 @@ export const Auth = ({ onLogin }: AuthProps) => {
         if (error) throw error;
 
         if (data.user) {
-          // Buscar dados complementares na tabela profiles
-          const { data: profile, error: profileError } = await supabase
+          // Tenta buscar o perfil
+          let { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', data.user.id)
             .single();
 
-          if (profileError) {
-             // Fallback se o perfil não existir por algum motivo
-             const fallbackUser: User = {
-                id: data.user.id,
-                email: data.user.email!,
-                name: 'Usuário',
-                createdAt: new Date().toISOString(),
-                subscription: 'free'
-             };
-             onLogin(fallbackUser);
-          } else {
+          // Se o perfil não existir (ex: criado via confirmação de email ou erro anterior), cria agora
+          if (!profile) {
+             const { error: insertError } = await supabase.from('profiles').insert([
+               { 
+                 id: data.user.id, 
+                 email: data.user.email,
+                 name: data.user.user_metadata?.name || 'Usuário',
+                 subscription: 'free'
+               }
+             ]);
+             
+             if (!insertError) {
+                // Busca novamente após criar
+                const { data: newProfile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+                profile = newProfile;
+             }
+          }
+
+          if (profile) {
              const user: User = {
                id: profile.id,
                name: profile.name,
@@ -57,46 +67,74 @@ export const Auth = ({ onLogin }: AuthProps) => {
                subscription: profile.subscription as 'free' | 'pro'
              };
              onLogin(user);
+          } else {
+             // Fallback de emergência apenas com dados da Auth
+             onLogin({
+                id: data.user.id,
+                email: data.user.email!,
+                name: data.user.user_metadata?.name || 'Usuário',
+                createdAt: new Date().toISOString(),
+                subscription: 'free'
+             });
           }
         }
 
       } else {
-        // CADASTRO COM SUPABASE
+        // --- CADASTRO ---
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
+          options: {
+            data: {
+              name: formData.name // Salva nome nos metadados como backup
+            }
+          }
         });
 
         if (error) throw error;
 
         if (data.user) {
-          // Criar registro na tabela pública de perfis
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert([
-              { 
-                id: data.user.id, 
+          // Se houver sessão (Auto Confirm ON), cria o perfil agora
+          if (data.session) {
+             const { error: insertError } = await supabase
+              .from('profiles')
+              .insert([
+                { 
+                  id: data.user.id, 
+                  name: formData.name,
+                  email: formData.email,
+                  subscription: 'free'
+                }
+              ]);
+             
+             if (insertError) {
+               // Se der erro de RLS aqui, ignoramos e deixamos o login criar depois
+               console.warn("Perfil não criado imediatamente (provável RLS), será criado no login.");
+             }
+
+             // Auto login
+             const newUser: User = {
+                id: data.user.id,
                 name: formData.name,
                 email: formData.email,
+                createdAt: new Date().toISOString(),
                 subscription: 'free'
-              }
-            ]);
-
-          if (profileError) throw profileError;
-
-          const newUser: User = {
-            id: data.user.id,
-            name: formData.name,
-            email: formData.email,
-            createdAt: new Date().toISOString(),
-            subscription: 'free'
-          };
-          
-          onLogin(newUser);
+             };
+             onLogin(newUser);
+          } else {
+            // Se não houver sessão (Confirmação de Email necessária)
+            setSuccessMsg('Cadastro realizado! Verifique seu e-mail para confirmar antes de entrar.');
+            setIsLogin(true); // Manda de volta pra tela de login
+          }
         }
       }
     } catch (err: any) {
-      setError(err.message || 'Ocorreu um erro. Verifique seus dados.');
+      console.error(err);
+      if (err.message.includes('security policy')) {
+         setError('Erro de permissão no banco de dados. Execute o script SQL de configuração no Supabase.');
+      } else {
+         setError(err.message || 'Ocorreu um erro. Verifique seus dados.');
+      }
     } finally {
       setLoading(false);
     }
@@ -122,8 +160,14 @@ export const Auth = ({ onLogin }: AuthProps) => {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-2xl text-xs font-black uppercase tracking-wider text-center border border-rose-100 dark:border-rose-800 animate-shake">
-            {error}
+          <div className="mb-6 p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-2xl text-xs font-black uppercase tracking-wider text-center border border-rose-100 dark:border-rose-800 animate-shake flex items-center justify-center gap-2">
+            <AlertCircle size={16} /> {error}
+          </div>
+        )}
+
+        {successMsg && (
+          <div className="mb-6 p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs font-black uppercase tracking-wider text-center border border-emerald-100 dark:border-emerald-800 animate-fade-in">
+            {successMsg}
           </div>
         )}
 
@@ -188,7 +232,7 @@ export const Auth = ({ onLogin }: AuthProps) => {
           </div>
 
           <button
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => { setIsLogin(!isLogin); setError(''); setSuccessMsg(''); }}
             className="text-indigo-600 dark:text-indigo-400 text-xs font-black uppercase tracking-widest hover:underline"
           >
             {isLogin ? 'Não tem conta? Crie aqui' : 'Já possui conta? Faça login'}
