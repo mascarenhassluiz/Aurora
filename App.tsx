@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { NavigationTab, User } from './types';
 import { Dashboard } from './components/Dashboard';
@@ -44,7 +43,8 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
 
-    // Timeout de segurança: Se o Supabase demorar mais de 3 segundos, libera o app para a tela de login
+    // --- TIMEOUT DE SEGURANÇA ---
+    // Se o Supabase não responder em 3 segundos, libera a tela de login
     const safetyTimeout = setTimeout(() => {
       if (mounted && loadingSession) {
         console.warn("Supabase session check timed out - forcing login screen");
@@ -58,7 +58,7 @@ export default function App() {
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
-           console.warn("Erro ao conectar com Supabase (verifique suas chaves):", error.message);
+           console.warn("Erro ao conectar com Supabase:", error.message);
         }
 
         if (data?.session?.user && mounted) {
@@ -211,7 +211,7 @@ export default function App() {
               <div className="animate-pulse flex flex-col items-center gap-4">
                   <Logo className="w-12 h-12" />
                   <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Carregando Aurora...</p>
-                  <p className="text-slate-500 text-[9px] font-medium">Conectando ao servidor seguro...</p>
+                  <p className="text-slate-500 text-[9px] font-medium">Estabelecendo conexão segura...</p>
               </div>
           </div>
       );
