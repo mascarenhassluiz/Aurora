@@ -28,17 +28,6 @@ export const Auth = ({ onLogin }: AuthProps) => {
     setSuccessMsg('');
     setLoading(true);
 
-    // Timeout de segurança visual (15s)
-    const timeoutId = setTimeout(() => {
-        setLoading((currentLoading) => {
-            if (currentLoading) {
-                setError('O servidor demorou para responder. Verifique sua conexão e tente novamente.');
-                return false;
-            }
-            return false;
-        });
-    }, 15000);
-
     try {
       if (isLogin) {
         // --- LOGIN ---
@@ -50,48 +39,34 @@ export const Auth = ({ onLogin }: AuthProps) => {
         if (error) throw error;
 
         if (data.user) {
-          // ESTRATÉGIA DE LOGIN OTIMISTA:
-          // Não bloqueamos a entrada esperando o banco de dados ('profiles').
-          // Se a autenticação (email/senha) passou, o usuário DEVE entrar.
-          
-          let profileData = null;
-          try {
-             // Tenta buscar o perfil com um timeout curto de 2 segundos.
-             // Se o banco não responder nesse tempo, ignoramos e usamos dados básicos.
-             const racePromise = new Promise((resolve, reject) => {
-                 const timer = setTimeout(() => resolve(null), 2000);
-                 supabase.from('profiles').select('*').eq('id', data.user.id).single()
-                    .then(res => { clearTimeout(timer); resolve(res.data); })
-                    .catch(() => { clearTimeout(timer); resolve(null); });
-             });
-             
-             profileData = await racePromise;
-          } catch (ignored) {
-             console.log("Banco de dados lento ou tabela inexistente, prosseguindo com login básico.");
-          }
+          // Busca perfil, mas não bloqueia se falhar (o App.tsx vai tentar novamente)
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
 
-          // Monta o usuário com o que temos (Prioridade: Banco -> Auth Metadata -> Fallback)
           const userToLog: User = {
              id: data.user.id,
-             name: (profileData as any)?.name || data.user.user_metadata?.name || 'Usuário',
-             email: (profileData as any)?.email || data.user.email || '',
-             createdAt: (profileData as any)?.created_at || new Date().toISOString(),
-             subscription: ((profileData as any)?.subscription as 'free' | 'pro') || 'free'
+             name: profile?.name || data.user.user_metadata?.name || 'Usuário',
+             email: profile?.email || data.user.email || '',
+             createdAt: profile?.created_at || new Date().toISOString(),
+             subscription: (profile?.subscription as 'free' | 'pro') || 'free'
           };
           
-          clearTimeout(timeoutId);
           onLogin(userToLog);
-          return;
         }
 
       } else {
         // --- CADASTRO ---
+        // O Trigger no banco de dados (SUPABASE_SETUP.sql) vai criar o perfil automaticamente.
+        // Não precisamos fazer insert manual na tabela 'profiles' aqui.
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
           options: {
             data: {
-              name: formData.name
+              name: formData.name // Isso vai para o raw_user_meta_data
             }
           }
         });
@@ -99,20 +74,8 @@ export const Auth = ({ onLogin }: AuthProps) => {
         if (error) throw error;
 
         if (data.user) {
-          // Tenta criar o perfil, mas não falha o cadastro se o banco der erro (RLS)
-          if (data.session) {
-             supabase.from('profiles').insert([
-                { 
-                  id: data.user.id, 
-                  name: formData.name,
-                  email: formData.email,
-                  subscription: 'free'
-                }
-              ]).then(({ error }) => {
-                 if (error) console.warn("Perfil DB não criado (provável falta de tabela), será criado no próximo login.");
-              });
-
-             // Auto login imediato
+           if (data.session) {
+             // Login automático após cadastro (se o email confirm não for obrigatório)
              const newUser: User = {
                 id: data.user.id,
                 name: formData.name,
@@ -120,25 +83,24 @@ export const Auth = ({ onLogin }: AuthProps) => {
                 createdAt: new Date().toISOString(),
                 subscription: 'free'
              };
-             clearTimeout(timeoutId);
              onLogin(newUser);
-          } else {
-            setSuccessMsg('Cadastro realizado! Verifique seu e-mail para confirmar antes de entrar.');
+           } else {
+            // E-mail confirm obrigatório
+            setSuccessMsg('Cadastro realizado! Verifique seu e-mail para confirmar o link de acesso.');
             setIsLogin(true); 
-          }
+           }
         }
       }
     } catch (err: any) {
       console.error(err);
-      if (err.message.includes('security policy') || err.message.includes('violates row-level')) {
-         setError('Erro de configuração no Banco de Dados. Execute o script SQL no Supabase.');
-      } else if (err.message.includes('Invalid login')) {
+      if (err.message.includes('Invalid login')) {
          setError('E-mail ou senha incorretos.');
+      } else if (err.message.includes('User already registered')) {
+         setError('Este e-mail já está cadastrado.');
       } else {
-         setError(err.message || 'Ocorreu um erro. Verifique seus dados.');
+         setError(err.message || 'Ocorreu um erro. Tente novamente.');
       }
     } finally {
-      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
