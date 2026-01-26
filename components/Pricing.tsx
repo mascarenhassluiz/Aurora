@@ -1,103 +1,166 @@
 
 import React, { useState } from 'react';
-import { Check, Star, Shield, Zap, Crown, Loader2 } from 'lucide-react';
+import { Check, Star, Shield, Zap, Crown, Loader2, Infinity, Calendar, Clock } from 'lucide-react';
 
 interface PricingProps {
-  onUpgrade: () => void; // Chamado apenas quando o pagamento é confirmado
+  onUpgrade: () => void;
   onCancel: () => void;
 }
 
-// Em produção, substitua este link pelo seu Link de Pagamento do Stripe ou Mercado Pago
-// Você cria isso no Dashboard do Stripe: Product Catalog -> Add Product -> Create Payment Link
-const PAYMENT_LINK = "https://buy.stripe.com/test_..."; 
+// ---------------------------------------------------------------------------------------
+// CONFIGURAÇÃO DE PAGAMENTO - STRIPE
+// Substitua as strings abaixo pelos links de pagamento gerados no seu painel do Stripe.
+// ---------------------------------------------------------------------------------------
+const STRIPE_LINKS = {
+  monthly: "https://buy.stripe.com/test_MENSAL",   // Cole o link do plano de R$ 27,00
+  annual: "https://buy.stripe.com/test_ANUAL",     // Cole o link do plano de R$ 37,00
+  lifetime: "https://buy.stripe.com/test_LIFETIME" // Cole o link do plano de R$ 87,00
+};
 
 export const Pricing = ({ onUpgrade, onCancel }: PricingProps) => {
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
-  const handleSubscribe = () => {
-    setIsLoading(true);
+  const handleSubscribe = (planType: 'monthly' | 'annual' | 'lifetime') => {
+    setLoadingPlan(planType);
+    const link = STRIPE_LINKS[planType];
+
+    if (!link || link.includes("test_MENSAL")) {
+      alert("Configuração necessária: Adicione os links do Stripe no arquivo Pricing.tsx");
+      setLoadingPlan(null);
+      return;
+    }
     
-    // Simula um pequeno delay para UX
-    setTimeout(() => {
-        // Redireciona o usuário para o Checkout
-        // O link de pagamento deve estar configurado para redirecionar de volta para:
-        // https://seu-app.com/?status=success
-        window.location.href = `${PAYMENT_LINK}?prefilled_email=user@example.com`; // Você pode passar o email do usuário na URL se o provedor aceitar
-        
-        // NOTA: Para fins de demonstração SEM link real, vamos comentar o redirect acima
-        // e chamar o onUpgrade diretamente após 2 segundos.
-        // DESCOMENTE A LINHA ABAIXO PARA USAR O MODO REAL:
-        // window.location.href = "https://link-do-seu-stripe.com";
-        
-        // MODO DEMONSTRAÇÃO (Remova isso quando colocar o link real):
-        onUpgrade(); 
-    }, 1500);
+    window.location.href = link;
   };
 
   return (
-    <div className="animate-fade-in flex flex-col items-center justify-center min-h-[80vh] py-10">
-      <div className="text-center mb-10 max-w-2xl px-6">
-        <div className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-1.5 rounded-full mb-6">
+    <div className="animate-fade-in flex flex-col items-center justify-center min-h-[85vh] py-12 px-4">
+      
+      {/* Header */}
+      <div className="text-center mb-12 max-w-3xl">
+        <div className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-1.5 rounded-full mb-6 border border-indigo-100 dark:border-indigo-800">
             <Crown size={14} className="text-indigo-600 dark:text-indigo-400" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Plano Premium</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Seja Premium</span>
         </div>
-        <h2 className="text-4xl md:text-6xl font-black text-slate-900 dark:text-white mb-6 uppercase tracking-tighter leading-tight">
-          Desbloqueie seu <span className="bg-gradient-to-r from-indigo-500 to-pink-500 bg-clip-text text-transparent">Potencial Total</span>
+        <h2 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-6 uppercase tracking-tighter leading-tight">
+          Invista no seu <span className="bg-gradient-to-r from-indigo-500 to-pink-500 bg-clip-text text-transparent">Futuro</span>
         </h2>
-        <p className="text-slate-500 dark:text-slate-400 font-medium text-lg">
-          O Aurora Pro remove todas as barreiras. Acesse ferramentas avançadas de finanças, saúde clínica e gestão de trabalho para acelerar seus resultados.
+        <p className="text-slate-500 dark:text-slate-400 font-medium text-lg max-w-xl mx-auto">
+          Escolha o plano ideal para desbloquear todas as ferramentas de finanças, saúde, treino e gestão de vida.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-6 max-w-5xl w-full">
-        {/* Free Plan */}
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-100 transition-all scale-95">
-          <h3 className="text-xl font-black dark:text-white uppercase tracking-tight mb-2">Básico</h3>
-          <p className="text-slate-400 text-sm font-bold mb-6">Para quem está começando</p>
-          <div className="text-4xl font-black dark:text-white mb-8">Grátis</div>
+      {/* Grid de Planos */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-6xl w-full items-stretch">
+        
+        {/* PLANO MENSAL */}
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col hover:border-indigo-500/30 transition-all group">
+          <div className="mb-6">
+            <div className="w-12 h-12 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mb-4 text-slate-600 dark:text-slate-300">
+                <Clock size={24} />
+            </div>
+            <h3 className="text-lg font-black dark:text-white uppercase tracking-tight">Mensal</h3>
+            <p className="text-slate-400 text-xs font-bold mt-1">Flexibilidade total</p>
+          </div>
           
-          <ul className="space-y-4 mb-8">
-            <li className="flex items-center gap-3 text-sm font-bold text-slate-600 dark:text-slate-300"><Check size={18} className="text-indigo-500" /> Rastreamento de Hábitos</li>
-            <li className="flex items-center gap-3 text-sm font-bold text-slate-600 dark:text-slate-300"><Check size={18} className="text-indigo-500" /> Diário Nutricional Básico</li>
-            <li className="flex items-center gap-3 text-sm font-bold text-slate-600 dark:text-slate-300"><Check size={18} className="text-indigo-500" /> Gestão Doméstica</li>
-            <li className="flex items-center gap-3 text-sm font-bold text-slate-400 line-through"><Check size={18} className="text-slate-300" /> Controle Financeiro Avançado</li>
-            <li className="flex items-center gap-3 text-sm font-bold text-slate-400 line-through"><Check size={18} className="text-slate-300" /> Análise de Exames Clínicos</li>
+          <div className="mb-8">
+            <span className="text-4xl font-black text-slate-900 dark:text-white">R$ 27</span>
+            <span className="text-slate-400 font-bold">,00</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mt-2">Cobrado todo mês</span>
+          </div>
+
+          <ul className="space-y-4 mb-8 flex-1">
+            <li className="flex items-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-300"><Check size={14} className="text-indigo-500" /> Acesso total ao App</li>
+            <li className="flex items-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-300"><Check size={14} className="text-indigo-500" /> Cancele quando quiser</li>
+            <li className="flex items-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-300"><Check size={14} className="text-indigo-500" /> Suporte básico</li>
           </ul>
-          
-          <button onClick={onCancel} className="w-full py-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 font-black uppercase text-[10px] tracking-widest text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
-            Continuar Grátis
+
+          <button 
+            onClick={() => handleSubscribe('monthly')}
+            disabled={!!loadingPlan}
+            className="w-full bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 dark:hover:bg-slate-600 transition-all flex justify-center"
+          >
+            {loadingPlan === 'monthly' ? <Loader2 className="animate-spin" size={16}/> : 'Assinar Mensal'}
           </button>
         </div>
 
-        {/* Pro Plan */}
-        <div className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 p-8 rounded-[3rem] shadow-2xl relative overflow-hidden transform hover:-translate-y-2 transition-transform duration-300 border-2 border-indigo-500">
-          <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest px-6 py-2 rounded-bl-2xl">Recomendado</div>
-          <Zap className="absolute -bottom-10 -right-10 w-64 h-64 text-indigo-500/10 rotate-12" />
+        {/* PLANO ANUAL (DESTAQUE) */}
+        <div className="bg-slate-900 dark:bg-indigo-950 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col transform md:-translate-y-4 border-2 border-indigo-500">
+          <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-bl-2xl z-10">Mais Popular</div>
+          <Zap className="absolute -bottom-10 -right-10 w-48 h-48 text-indigo-500/20 rotate-12 pointer-events-none" />
           
-          <h3 className="text-xl font-black uppercase tracking-tight mb-2 flex items-center gap-2">Aurora Pro <Star size={18} className="fill-amber-400 text-amber-400"/></h3>
-          <p className="text-indigo-200 dark:text-indigo-600 text-sm font-bold mb-6">Controle total da sua vida</p>
-          <div className="text-5xl font-black mb-1">R$ 29,90<span className="text-lg opacity-50 font-medium">/mês</span></div>
-          <p className="text-[10px] opacity-60 mb-8 uppercase tracking-widest">Cancele quando quiser</p>
+          <div className="mb-6 relative z-10">
+            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center mb-4 text-white shadow-lg shadow-indigo-500/30">
+                <Star size={24} fill="currentColor" />
+            </div>
+            <h3 className="text-lg font-black text-white uppercase tracking-tight">Anual</h3>
+            <p className="text-indigo-200 text-xs font-bold mt-1">Melhor custo-benefício</p>
+          </div>
           
-          <ul className="space-y-4 mb-10 relative z-10">
-            <li className="flex items-center gap-3 text-sm font-bold"><div className="p-1 bg-emerald-500 rounded-full"><Check size={12} className="text-white" /></div> Acesso Ilimitado a Tudo</li>
-            <li className="flex items-center gap-3 text-sm font-bold"><div className="p-1 bg-emerald-500 rounded-full"><Check size={12} className="text-white" /></div> Finanças & Investimentos</li>
-            <li className="flex items-center gap-3 text-sm font-bold"><div className="p-1 bg-emerald-500 rounded-full"><Check size={12} className="text-white" /></div> Saúde & Exames Laboratoriais</li>
-            <li className="flex items-center gap-3 text-sm font-bold"><div className="p-1 bg-emerald-500 rounded-full"><Check size={12} className="text-white" /></div> Gestão de Trabalho & Freelance</li>
-            <li className="flex items-center gap-3 text-sm font-bold"><div className="p-1 bg-emerald-500 rounded-full"><Check size={12} className="text-white" /></div> Suporte Prioritário</li>
+          <div className="mb-8 relative z-10 text-white">
+            <span className="text-5xl font-black">R$ 37</span>
+            <span className="text-indigo-300 font-bold">,00</span>
+            <div className="mt-2 inline-block bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest border border-emerald-500/30">
+               Apenas R$ 3,08 / mês
+            </div>
+          </div>
+
+          <ul className="space-y-4 mb-8 flex-1 relative z-10 text-indigo-100">
+            <li className="flex items-center gap-3 text-xs font-bold"><div className="p-0.5 bg-emerald-500 rounded-full"><Check size={10} className="text-white" /></div> Economia massiva</li>
+            <li className="flex items-center gap-3 text-xs font-bold"><div className="p-0.5 bg-emerald-500 rounded-full"><Check size={10} className="text-white" /></div> 12 meses de acesso</li>
+            <li className="flex items-center gap-3 text-xs font-bold"><div className="p-0.5 bg-emerald-500 rounded-full"><Check size={10} className="text-white" /></div> Todas as funcionalidades</li>
           </ul>
-          
+
           <button 
-            onClick={handleSubscribe}
-            disabled={isLoading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-indigo-900/50 transition-all active:scale-95 relative z-10 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            onClick={() => handleSubscribe('annual')}
+            disabled={!!loadingPlan}
+            className="w-full bg-indigo-500 hover:bg-indigo-400 text-white py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-900/50 transition-all flex justify-center relative z-10"
           >
-            {isLoading ? <Loader2 size={16} className="animate-spin" /> : <>Assinar Agora <Shield size={16} /></>}
+             {loadingPlan === 'annual' ? <Loader2 className="animate-spin" size={16}/> : 'Assinar Anual'}
           </button>
-          
-          <p className="text-center text-[9px] opacity-40 mt-4 font-medium uppercase tracking-wider">Pagamento 100% Seguro via Stripe</p>
         </div>
+
+        {/* PLANO VITALÍCIO */}
+        <div className="bg-gradient-to-b from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 p-8 rounded-[2.5rem] border border-amber-500/30 shadow-sm flex flex-col group relative overflow-hidden">
+          <div className="absolute inset-0 bg-amber-500/5 pointer-events-none"></div>
+          <div className="mb-6 relative z-10">
+            <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center mb-4 text-amber-500">
+                <Infinity size={24} />
+            </div>
+            <h3 className="text-lg font-black dark:text-white uppercase tracking-tight text-amber-600 dark:text-amber-400">Vitalício</h3>
+            <p className="text-slate-400 text-xs font-bold mt-1">Pague uma única vez</p>
+          </div>
+          
+          <div className="mb-8 relative z-10">
+            <span className="text-4xl font-black text-slate-900 dark:text-white">R$ 87</span>
+            <span className="text-slate-400 font-bold">,00</span>
+            <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mt-2">Acesso para sempre</span>
+          </div>
+
+          <ul className="space-y-4 mb-8 flex-1 relative z-10">
+            <li className="flex items-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-300"><Check size={14} className="text-amber-500" /> Sem mensalidades</li>
+            <li className="flex items-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-300"><Check size={14} className="text-amber-500" /> Atualizações futuras</li>
+            <li className="flex items-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-300"><Check size={14} className="text-amber-500" /> Badge de Fundador</li>
+          </ul>
+
+          <button 
+            onClick={() => handleSubscribe('lifetime')}
+            disabled={!!loadingPlan}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 transition-all flex justify-center relative z-10"
+          >
+             {loadingPlan === 'lifetime' ? <Loader2 className="animate-spin" size={16}/> : 'Obter Vitalício'}
+          </button>
+        </div>
+
       </div>
+
+      <button onClick={onCancel} className="mt-12 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[10px] font-black uppercase tracking-widest transition-colors">
+        Voltar ao plano gratuito
+      </button>
+      
+      <p className="flex items-center gap-2 text-[9px] text-slate-300 dark:text-slate-600 font-bold uppercase tracking-widest mt-6">
+        <Shield size={12} /> Pagamento seguro via Stripe
+      </p>
     </div>
   );
 };
