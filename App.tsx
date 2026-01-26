@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { NavigationTab, User } from './types';
 import { Dashboard } from './components/Dashboard';
@@ -62,22 +63,29 @@ export default function App() {
         }
 
         if (data?.session?.user && mounted) {
-          // Buscar dados do perfil
-          const { data: profile, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', data.session.user.id)
-              .single();
-              
-          if (profile && !profileError) {
-              setCurrentUser({
-                  id: profile.id,
-                  name: profile.name,
-                  email: profile.email,
-                  createdAt: profile.created_at,
-                  subscription: profile.subscription
-              });
+          // Buscar dados do perfil com tratamento de erro
+          let userProfile = null;
+          try {
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.session.user.id)
+                .single();
+            userProfile = profile;
+          } catch (e) {
+            console.warn("Erro ao buscar perfil no App.tsx", e);
           }
+              
+          // Usa o perfil se existir, senão usa dados da sessão
+          const userData: User = {
+              id: data.session.user.id,
+              name: userProfile?.name || data.session.user.user_metadata?.name || 'Usuário',
+              email: userProfile?.email || data.session.user.email || '',
+              createdAt: userProfile?.created_at || new Date().toISOString(),
+              subscription: userProfile?.subscription || 'free'
+          };
+          
+          setCurrentUser(userData);
         }
       } catch (err) {
         console.error("Erro crítico na inicialização do Supabase:", err);
@@ -98,19 +106,28 @@ export default function App() {
               .eq('id', session.user.id)
               .single();
            
-           if (profile) {
-              setCurrentUser({
-                  id: profile.id,
-                  name: profile.name,
-                  email: profile.email,
-                  createdAt: profile.created_at,
-                  subscription: profile.subscription
-              });
-           }
+           // Resiliência: Se perfil falhar, usa dados básicos da sessão
+           const userData: User = {
+              id: session.user.id,
+              name: profile?.name || session.user.user_metadata?.name || 'Usuário',
+              email: profile?.email || session.user.email || '',
+              createdAt: profile?.created_at || new Date().toISOString(),
+              subscription: profile?.subscription || 'free'
+           };
+
+           setCurrentUser(userData);
          } catch (e) {
-           console.error("Erro ao buscar perfil:", e);
+           console.error("Erro ao sincronizar login:", e);
+           // Fallback crítico
+           setCurrentUser({
+              id: session.user.id,
+              name: session.user.user_metadata?.name || 'Usuário',
+              email: session.user.email || '',
+              createdAt: new Date().toISOString(),
+              subscription: 'free'
+           });
          }
-      } else if (mounted) {
+      } else if (event === 'SIGNED_OUT' && mounted) {
         setCurrentUser(null);
       }
     });

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { Logo } from './Logo';
 import { supabase } from '../supabaseClient';
@@ -16,11 +16,28 @@ export const Auth = ({ onLogin }: AuthProps) => {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Limpa erros ao trocar de modo
+  useEffect(() => {
+    setError('');
+    setSuccessMsg('');
+  }, [isLogin]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
     setLoading(true);
+
+    // Timeout de segurança: se nada acontecer em 10s, destrava o botão
+    const timeoutId = setTimeout(() => {
+        setLoading((currentLoading) => {
+            if (currentLoading) {
+                setError('O servidor demorou para responder. Verifique sua conexão e tente novamente.');
+                return false;
+            }
+            return false;
+        });
+    }, 10000);
 
     try {
       if (isLogin) {
@@ -34,49 +51,50 @@ export const Auth = ({ onLogin }: AuthProps) => {
 
         if (data.user) {
           // Tenta buscar o perfil
-          let { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
+          let profile = null;
+          
+          try {
+             const { data: profileData } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.user.id)
+                .single();
+             profile = profileData;
+          } catch (profileErr) {
+             console.warn("Erro ao buscar perfil, usando fallback:", profileErr);
+          }
 
-          // Se o perfil não existir (ex: criado via confirmação de email ou erro anterior), cria agora
+          // Se não achou perfil, tenta criar (resiliência)
           if (!profile) {
-             const { error: insertError } = await supabase.from('profiles').insert([
-               { 
-                 id: data.user.id, 
-                 email: data.user.email,
-                 name: data.user.user_metadata?.name || 'Usuário',
-                 subscription: 'free'
-               }
-             ]);
-             
-             if (!insertError) {
-                // Busca novamente após criar
-                const { data: newProfile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-                profile = newProfile;
+             try {
+                 await supabase.from('profiles').insert([
+                   { 
+                     id: data.user.id, 
+                     email: data.user.email,
+                     name: data.user.user_metadata?.name || 'Usuário',
+                     subscription: 'free'
+                   }
+                 ]);
+                 // Tenta buscar de novo
+                 const { data: newProfile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+                 profile = newProfile;
+             } catch (insertErr) {
+                 console.warn("Falha ao criar perfil automático:", insertErr);
              }
           }
 
-          if (profile) {
-             const user: User = {
-               id: profile.id,
-               name: profile.name,
-               email: profile.email,
-               createdAt: profile.created_at,
-               subscription: profile.subscription as 'free' | 'pro'
-             };
-             onLogin(user);
-          } else {
-             // Fallback de emergência apenas com dados da Auth
-             onLogin({
-                id: data.user.id,
-                email: data.user.email!,
-                name: data.user.user_metadata?.name || 'Usuário',
-                createdAt: new Date().toISOString(),
-                subscription: 'free'
-             });
-          }
+          // FALLBACK FINAL: Se tem User do Auth, LOGA DE QUALQUER JEITO
+          // Isso impede o loop infinito se o banco de dados (tabela profiles) estiver com erro de RLS
+          const userToLog: User = {
+             id: data.user.id,
+             name: profile?.name || data.user.user_metadata?.name || 'Usuário',
+             email: profile?.email || data.user.email || '',
+             createdAt: profile?.created_at || new Date().toISOString(),
+             subscription: (profile?.subscription as 'free' | 'pro') || 'free'
+          };
+          
+          clearTimeout(timeoutId);
+          onLogin(userToLog);
         }
 
       } else {
@@ -108,7 +126,6 @@ export const Auth = ({ onLogin }: AuthProps) => {
               ]);
              
              if (insertError) {
-               // Se der erro de RLS aqui, ignoramos e deixamos o login criar depois
                console.warn("Perfil não criado imediatamente (provável RLS), será criado no login.");
              }
 
@@ -120,6 +137,7 @@ export const Auth = ({ onLogin }: AuthProps) => {
                 createdAt: new Date().toISOString(),
                 subscription: 'free'
              };
+             clearTimeout(timeoutId);
              onLogin(newUser);
           } else {
             // Se não houver sessão (Confirmação de Email necessária)
@@ -132,10 +150,13 @@ export const Auth = ({ onLogin }: AuthProps) => {
       console.error(err);
       if (err.message.includes('security policy')) {
          setError('Erro de permissão no banco de dados. Execute o script SQL de configuração no Supabase.');
+      } else if (err.message.includes('Invalid login')) {
+         setError('E-mail ou senha incorretos.');
       } else {
          setError(err.message || 'Ocorreu um erro. Verifique seus dados.');
       }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
