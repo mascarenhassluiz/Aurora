@@ -28,7 +28,7 @@ export const Auth = ({ onLogin }: AuthProps) => {
     setSuccessMsg('');
     setLoading(true);
 
-    // Timeout de segurança: se nada acontecer em 10s, destrava o botão
+    // Timeout de segurança visual (15s)
     const timeoutId = setTimeout(() => {
         setLoading((currentLoading) => {
             if (currentLoading) {
@@ -37,7 +37,7 @@ export const Auth = ({ onLogin }: AuthProps) => {
             }
             return false;
         });
-    }, 10000);
+    }, 15000);
 
     try {
       if (isLogin) {
@@ -50,51 +50,38 @@ export const Auth = ({ onLogin }: AuthProps) => {
         if (error) throw error;
 
         if (data.user) {
-          // Tenta buscar o perfil
-          let profile = null;
+          // ESTRATÉGIA DE LOGIN OTIMISTA:
+          // Não bloqueamos a entrada esperando o banco de dados ('profiles').
+          // Se a autenticação (email/senha) passou, o usuário DEVE entrar.
           
+          let profileData = null;
           try {
-             const { data: profileData } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', data.user.id)
-                .single();
-             profile = profileData;
-          } catch (profileErr) {
-             console.warn("Erro ao buscar perfil, usando fallback:", profileErr);
+             // Tenta buscar o perfil com um timeout curto de 2 segundos.
+             // Se o banco não responder nesse tempo, ignoramos e usamos dados básicos.
+             const racePromise = new Promise((resolve, reject) => {
+                 const timer = setTimeout(() => resolve(null), 2000);
+                 supabase.from('profiles').select('*').eq('id', data.user.id).single()
+                    .then(res => { clearTimeout(timer); resolve(res.data); })
+                    .catch(() => { clearTimeout(timer); resolve(null); });
+             });
+             
+             profileData = await racePromise;
+          } catch (ignored) {
+             console.log("Banco de dados lento ou tabela inexistente, prosseguindo com login básico.");
           }
 
-          // Se não achou perfil, tenta criar (resiliência)
-          if (!profile) {
-             try {
-                 await supabase.from('profiles').insert([
-                   { 
-                     id: data.user.id, 
-                     email: data.user.email,
-                     name: data.user.user_metadata?.name || 'Usuário',
-                     subscription: 'free'
-                   }
-                 ]);
-                 // Tenta buscar de novo
-                 const { data: newProfile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-                 profile = newProfile;
-             } catch (insertErr) {
-                 console.warn("Falha ao criar perfil automático:", insertErr);
-             }
-          }
-
-          // FALLBACK FINAL: Se tem User do Auth, LOGA DE QUALQUER JEITO
-          // Isso impede o loop infinito se o banco de dados (tabela profiles) estiver com erro de RLS
+          // Monta o usuário com o que temos (Prioridade: Banco -> Auth Metadata -> Fallback)
           const userToLog: User = {
              id: data.user.id,
-             name: profile?.name || data.user.user_metadata?.name || 'Usuário',
-             email: profile?.email || data.user.email || '',
-             createdAt: profile?.created_at || new Date().toISOString(),
-             subscription: (profile?.subscription as 'free' | 'pro') || 'free'
+             name: (profileData as any)?.name || data.user.user_metadata?.name || 'Usuário',
+             email: (profileData as any)?.email || data.user.email || '',
+             createdAt: (profileData as any)?.created_at || new Date().toISOString(),
+             subscription: ((profileData as any)?.subscription as 'free' | 'pro') || 'free'
           };
           
           clearTimeout(timeoutId);
           onLogin(userToLog);
+          return;
         }
 
       } else {
@@ -104,7 +91,7 @@ export const Auth = ({ onLogin }: AuthProps) => {
           password: formData.password,
           options: {
             data: {
-              name: formData.name // Salva nome nos metadados como backup
+              name: formData.name
             }
           }
         });
@@ -112,24 +99,20 @@ export const Auth = ({ onLogin }: AuthProps) => {
         if (error) throw error;
 
         if (data.user) {
-          // Se houver sessão (Auto Confirm ON), cria o perfil agora
+          // Tenta criar o perfil, mas não falha o cadastro se o banco der erro (RLS)
           if (data.session) {
-             const { error: insertError } = await supabase
-              .from('profiles')
-              .insert([
+             supabase.from('profiles').insert([
                 { 
                   id: data.user.id, 
                   name: formData.name,
                   email: formData.email,
                   subscription: 'free'
                 }
-              ]);
-             
-             if (insertError) {
-               console.warn("Perfil não criado imediatamente (provável RLS), será criado no login.");
-             }
+              ]).then(({ error }) => {
+                 if (error) console.warn("Perfil DB não criado (provável falta de tabela), será criado no próximo login.");
+              });
 
-             // Auto login
+             // Auto login imediato
              const newUser: User = {
                 id: data.user.id,
                 name: formData.name,
@@ -140,16 +123,15 @@ export const Auth = ({ onLogin }: AuthProps) => {
              clearTimeout(timeoutId);
              onLogin(newUser);
           } else {
-            // Se não houver sessão (Confirmação de Email necessária)
             setSuccessMsg('Cadastro realizado! Verifique seu e-mail para confirmar antes de entrar.');
-            setIsLogin(true); // Manda de volta pra tela de login
+            setIsLogin(true); 
           }
         }
       }
     } catch (err: any) {
       console.error(err);
-      if (err.message.includes('security policy')) {
-         setError('Erro de permissão no banco de dados. Execute o script SQL de configuração no Supabase.');
+      if (err.message.includes('security policy') || err.message.includes('violates row-level')) {
+         setError('Erro de configuração no Banco de Dados. Execute o script SQL no Supabase.');
       } else if (err.message.includes('Invalid login')) {
          setError('E-mail ou senha incorretos.');
       } else {

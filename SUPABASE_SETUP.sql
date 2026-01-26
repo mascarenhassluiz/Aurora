@@ -1,6 +1,6 @@
 
 -- ==============================================================================
--- CORREÇÃO DE PERMISSÕES (RLS) - AURORA APP
+-- CORREÇÃO DEFINITIVA DE PERMISSÕES (RLS) - AURORA APP
 -- ==============================================================================
 -- INSTRUÇÕES:
 -- 1. Copie todo este conteúdo.
@@ -8,31 +8,41 @@
 -- 3. Cole e clique em RUN.
 -- ==============================================================================
 
--- 1. Garante que RLS (Segurança) está ativado na tabela
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+-- 1. Cria a tabela de perfis (se não existir)
+create table if not exists public.profiles (
+  id uuid references auth.users on delete cascade not null primary key,
+  email text,
+  name text,
+  subscription text default 'free',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
 
--- 2. Remove políticas antigas para evitar conflitos (limpeza)
-DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON public.profiles;
+-- 2. Ativa a segurança (RLS)
+alter table public.profiles enable row level security;
 
--- 3. CRIA A POLÍTICA DE INSERÇÃO (Isso resolve o erro do cadastro)
--- Permite que o usuário insira seus próprios dados ao se cadastrar
-CREATE POLICY "Users can insert their own profile"
-ON public.profiles FOR INSERT
-WITH CHECK ( auth.uid() = id );
+-- 3. LIMPEZA: Remove políticas antigas para evitar o erro 42710 (Policy already exists)
+-- Isso garante que o script funcione mesmo se você já tiver tentado antes.
+drop policy if exists "Public profiles are viewable by everyone." on profiles;
+drop policy if exists "Users can insert their own profile." on profiles;
+drop policy if exists "Users can update own profile." on profiles;
+drop policy if exists "Users can insert their own profile" on profiles;
+drop policy if exists "Users can view own profile" on profiles;
 
--- 4. CRIA A POLÍTICA DE LEITURA
--- Permite que o usuário veja seus próprios dados
-CREATE POLICY "Users can view own profile"
-ON public.profiles FOR SELECT
-USING ( auth.uid() = id );
+-- 4. CRIAÇÃO: Cria as políticas corretas
+create policy "Public profiles are viewable by everyone."
+  on profiles for select
+  using ( true );
 
--- 5. CRIA A POLÍTICA DE ATUALIZAÇÃO
--- Permite que o usuário atualize seus dados (ex: mudar plano para Pro)
-CREATE POLICY "Users can update own profile"
-ON public.profiles FOR UPDATE
-USING ( auth.uid() = id );
+create policy "Users can insert their own profile."
+  on profiles for insert
+  with check ( auth.uid() = id );
 
--- FIM DO SCRIPT
+create policy "Users can update own profile."
+  on profiles for update
+  using ( auth.uid() = id );
+
+-- 5. Permissões finais
+grant all on table public.profiles to postgres;
+grant all on table public.profiles to anon;
+grant all on table public.profiles to authenticated;
+grant all on table public.profiles to service_role;
