@@ -6,9 +6,9 @@ export interface User {
   name: string;
   email: string;
   password?: string;
-  avatar?: string;
+  avatarUrl?: string; // Novo campo para foto do Google
   createdAt: string;
-  subscription: 'free' | 'pro'; // Novo campo para controle de plano
+  subscription: 'free' | 'pro';
 }
 
 export interface Reminder {
@@ -120,5 +120,5 @@ export interface HealthExam {
   id: string;
   date: string;
   location: string;
-  metrics: Record<string, number>; // chave é o ID da métrica (ex: 'testo_total'), valor é o resultado
+  metrics: Record<string, number>;
 }

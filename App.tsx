@@ -12,6 +12,8 @@ import { Studies } from './components/Studies';
 import { Health } from './components/Health';
 import { Pricing } from './components/Pricing';
 import { Logo } from './components/Logo';
+import { Auth } from './components/Auth';
+import { supabase } from './supabaseClient';
 import { 
   LayoutDashboard, 
   Activity, 
@@ -26,43 +28,105 @@ import {
   Menu,
   HeartPulse,
   Lock,
-  Trash2
+  LogOut
 } from 'lucide-react';
 
 export default function App() {
-  // Usuário Local Padrão (Sem Login)
-  const [currentUser, setCurrentUser] = useState<User>(() => {
-    const savedProfile = localStorage.getItem('aurora_local_profile');
-    return savedProfile ? JSON.parse(savedProfile) : {
-      id: 'local-user',
-      name: 'Visitante',
-      email: 'local@device', // Usado para prefixo de chaves no localStorage
-      createdAt: new Date().toISOString(),
-      subscription: 'free'
-    };
-  });
-
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
   const [darkMode, setDarkMode] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [loadingSession, setLoadingSession] = useState(true);
 
-  // Persistir perfil local (caso faça upgrade)
+  // Inicializa sessão com Supabase
   useEffect(() => {
-    localStorage.setItem('aurora_local_profile', JSON.stringify(currentUser));
-  }, [currentUser]);
+    let mounted = true;
 
-  // Check for Payment Success in URL (Simulação Local)
+    const fetchProfile = async (sessionUser: any) => {
+      try {
+        // Tenta buscar perfil existente
+        let { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', sessionUser.id)
+          .maybeSingle();
+
+        // Se não existir (ex: login google primeira vez e trigger falhou), usa metadados
+        if (!profile) {
+          const { data: newProfile, error } = await supabase
+            .from('profiles')
+            .upsert({
+              id: sessionUser.id,
+              email: sessionUser.email,
+              name: sessionUser.user_metadata?.full_name || sessionUser.user_metadata?.name || 'Usuário',
+              subscription: 'free'
+            })
+            .select()
+            .single();
+          
+          if (!error) profile = newProfile;
+        }
+
+        if (mounted) {
+          setCurrentUser({
+            id: sessionUser.id,
+            name: profile?.name || sessionUser.user_metadata?.full_name || 'Usuário',
+            email: sessionUser.email || '',
+            avatarUrl: sessionUser.user_metadata?.avatar_url,
+            createdAt: profile?.created_at || new Date().toISOString(),
+            subscription: profile?.subscription || 'free'
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao carregar perfil:", error);
+      }
+    };
+
+    // 1. Verifica sessão atual
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchProfile(session.user);
+      }
+      if (mounted) setLoadingSession(false);
+    });
+
+    // 2. Escuta mudanças (Login, Logout, Auto-refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        fetchProfile(session.user);
+      } else {
+        if (mounted) setCurrentUser(null);
+      }
+      if (mounted) setLoadingSession(false);
+    });
+
+    // Tema
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setDarkMode(true);
+    }
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Check for Payment Success in URL
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
-    if (query.get('status') === 'success' && currentUser.subscription !== 'pro') {
-      setTimeout(() => {
-         setCurrentUser(prev => ({ ...prev, subscription: 'pro' }));
-         alert('Pagamento confirmado! Bem-vindo ao Aurora Pro.');
+    if (query.get('status') === 'success' && currentUser) {
+      setTimeout(async () => {
+         // Tenta atualizar no Supabase
+         if (currentUser.subscription !== 'pro') {
+             await supabase.from('profiles').update({ subscription: 'pro' }).eq('id', currentUser.id);
+             setCurrentUser(prev => prev ? ({ ...prev, subscription: 'pro' }) : null);
+             alert('Pagamento confirmado! Bem-vindo ao Aurora Pro.');
+         }
          window.history.replaceState({}, document.title, window.location.pathname);
       }, 500);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     if (darkMode) {
@@ -72,18 +136,19 @@ export default function App() {
     }
   }, [darkMode]);
 
-  const handleResetData = () => {
-    if (window.confirm("Isso apagará TODOS os seus dados salvos neste dispositivo. Tem certeza?")) {
-      localStorage.clear();
-      window.location.reload();
-    }
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+    setShowPricing(false);
+    setActiveTab('dashboard');
   };
 
   const handleUpgrade = async () => {
-    // Upgrade Local
-    setCurrentUser(prev => ({ ...prev, subscription: 'pro' }));
+    if (!currentUser) return;
+    // Simulação manual (idealmente via Webhook do Stripe)
+    await supabase.from('profiles').update({ subscription: 'pro' }).eq('id', currentUser.id);
+    setCurrentUser({ ...currentUser, subscription: 'pro' });
     setShowPricing(false);
-    alert("Upgrade realizado com sucesso!");
   };
 
   const toggleTheme = () => setDarkMode(!darkMode);
@@ -100,12 +165,28 @@ export default function App() {
     { id: 'health', label: 'Saúde', icon: <HeartPulse size={20} />, isPro: true }, 
   ];
 
+  if (loadingSession) {
+      return (
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+              <div className="animate-pulse flex flex-col items-center gap-4">
+                  <Logo className="w-12 h-12" />
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Conectando Aurora...</p>
+              </div>
+          </div>
+      );
+  }
+
+  if (!currentUser) {
+    return <Auth onLogin={(user) => setCurrentUser(user)} />;
+  }
+
   const renderContent = () => {
     if (showPricing) {
       return <Pricing onUpgrade={handleUpgrade} onCancel={() => setShowPricing(false)} />;
     }
 
-    const storagePrefix = `aurora_local_`; // Prefixo fixo para modo offline
+    // Prefixo garante que os dados sejam salvos ESPECIFICAMENTE para este usuário
+    const storagePrefix = `aurora_${currentUser.email}_`;
     const userName = currentUser.name;
     
     switch (activeTab) {
@@ -150,7 +231,7 @@ export default function App() {
             <div>
               <span className="block text-xl font-bold bg-gradient-to-r from-indigo-500 to-pink-500 bg-clip-text text-transparent uppercase tracking-tight">Aurora</span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold truncate max-w-[120px]">Modo Pessoal</span>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold truncate max-w-[120px]">{currentUser.name}</span>
                   {currentUser.subscription === 'pro' && (
                       <span className="bg-gradient-to-r from-indigo-500 to-pink-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest">Pro</span>
                   )}
@@ -191,10 +272,8 @@ export default function App() {
                 {darkMode ? <Sun size={18} /> : <Moon size={18} />}
                 <span className="text-sm font-medium">{darkMode ? 'Claro' : 'Escuro'}</span>
              </button>
-             
-             {/* Botão de Reset ao invés de Logout */}
-             <button onClick={handleResetData} className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/10 text-rose-600 font-black uppercase text-[9px] hover:bg-rose-100 dark:hover:bg-rose-900/20 transition-all">
-                <Trash2 size={14} /> Resetar Dados
+             <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/10 text-rose-600 font-black uppercase text-[9px]">
+                <LogOut size={14} /> Sair
              </button>
           </div>
         </div>
@@ -202,7 +281,12 @@ export default function App() {
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className="lg:hidden flex items-center justify-between px-6 py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b sticky top-0 z-40">
-           <Logo className="w-8 h-8" />
+           <div className="flex items-center gap-3">
+              <Logo className="w-8 h-8" />
+              {currentUser.avatarUrl && (
+                  <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700" />
+              )}
+           </div>
            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2"><Menu size={24} /></button>
         </header>
         <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth pb-32 lg:pb-8">
