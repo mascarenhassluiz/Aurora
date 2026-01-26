@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Check, Star, Shield, Zap, Crown, Loader2, Infinity, Calendar, Clock } from 'lucide-react';
+import { Check, Star, Shield, Zap, Crown, Loader2, Infinity, Calendar, Clock, Beaker } from 'lucide-react';
 
 interface PricingProps {
   onUpgrade: () => void;
@@ -9,12 +8,11 @@ interface PricingProps {
 
 // ---------------------------------------------------------------------------------------
 // CONFIGURAÇÃO DE PAGAMENTO - STRIPE
-// Substitua as strings abaixo pelos links de pagamento gerados no seu painel do Stripe.
 // ---------------------------------------------------------------------------------------
 const STRIPE_LINKS = {
-  monthly: "https://buy.stripe.com/test_MENSAL",   // Cole o link do plano de R$ 27,00
-  annual: "https://buy.stripe.com/test_ANUAL",     // Cole o link do plano de R$ 37,00
-  lifetime: "https://buy.stripe.com/test_LIFETIME" // Cole o link do plano de R$ 87,00
+  monthly: "https://buy.stripe.com/4gM9AMd5nehsgaU1qd3Ru05",
+  annual: "https://buy.stripe.com/aFabIU0iBehsf6Q5Gt3Ru04",
+  lifetime: "https://buy.stripe.com/cNi6oA8P71uG6Akfh33Ru03"
 };
 
 export const Pricing = ({ onUpgrade, onCancel }: PricingProps) => {
@@ -23,14 +21,19 @@ export const Pricing = ({ onUpgrade, onCancel }: PricingProps) => {
   const handleSubscribe = (planType: 'monthly' | 'annual' | 'lifetime') => {
     setLoadingPlan(planType);
     const link = STRIPE_LINKS[planType];
-
-    if (!link || link.includes("test_MENSAL")) {
-      alert("Configuração necessária: Adicione os links do Stripe no arquivo Pricing.tsx");
-      setLoadingPlan(null);
-      return;
-    }
     
-    window.location.href = link;
+    if (link) {
+        window.location.href = link;
+    } else {
+        setLoadingPlan(null);
+        alert("Link de pagamento não encontrado.");
+    }
+  };
+
+  const simulatePaymentSuccess = () => {
+    // Simula o retorno do Stripe adicionando o parâmetro na URL
+    const newUrl = window.location.pathname + "?status=success";
+    window.location.href = newUrl;
   };
 
   return (
@@ -154,9 +157,16 @@ export const Pricing = ({ onUpgrade, onCancel }: PricingProps) => {
 
       </div>
 
-      <button onClick={onCancel} className="mt-12 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[10px] font-black uppercase tracking-widest transition-colors">
-        Voltar ao plano gratuito
-      </button>
+      <div className="mt-12 flex flex-col items-center gap-4">
+        <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[10px] font-black uppercase tracking-widest transition-colors">
+            Voltar ao plano gratuito
+        </button>
+
+        {/* Botão de Teste Oculto/Discreto */}
+        <button onClick={simulatePaymentSuccess} className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-full text-[9px] font-bold text-slate-400 hover:text-indigo-500 transition-colors uppercase tracking-widest border border-transparent hover:border-indigo-200 dark:hover:border-indigo-900">
+            <Beaker size={12} /> Testar Aprovação de Pagamento
+        </button>
+      </div>
       
       <p className="flex items-center gap-2 text-[9px] text-slate-300 dark:text-slate-600 font-bold uppercase tracking-widest mt-6">
         <Shield size={12} /> Pagamento seguro via Stripe
