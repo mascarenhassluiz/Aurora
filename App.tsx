@@ -12,8 +12,6 @@ import { Studies } from './components/Studies';
 import { Health } from './components/Health';
 import { Pricing } from './components/Pricing';
 import { Logo } from './components/Logo';
-import { Auth } from './components/Auth';
-import { supabase } from './supabaseClient'; // Import Supabase
 import { 
   LayoutDashboard, 
   Activity, 
@@ -26,149 +24,45 @@ import {
   Sun, 
   Moon,
   Menu,
-  X,
-  LogOut,
   HeartPulse,
-  Lock
+  Lock,
+  Trash2
 } from 'lucide-react';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // Usuário Local Padrão (Sem Login)
+  const [currentUser, setCurrentUser] = useState<User>(() => {
+    const savedProfile = localStorage.getItem('aurora_local_profile');
+    return savedProfile ? JSON.parse(savedProfile) : {
+      id: 'local-user',
+      name: 'Visitante',
+      email: 'local@device', // Usado para prefixo de chaves no localStorage
+      createdAt: new Date().toISOString(),
+      subscription: 'free'
+    };
+  });
+
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
   const [darkMode, setDarkMode] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
-  const [loadingSession, setLoadingSession] = useState(true);
 
-  // Initialize Session from Supabase
+  // Persistir perfil local (caso faça upgrade)
   useEffect(() => {
-    let mounted = true;
+    localStorage.setItem('aurora_local_profile', JSON.stringify(currentUser));
+  }, [currentUser]);
 
-    // --- TIMEOUT DE SEGURANÇA ---
-    // Se o Supabase não responder em 3 segundos, libera a tela de login
-    const safetyTimeout = setTimeout(() => {
-      if (mounted && loadingSession) {
-        console.warn("Supabase session check timed out - forcing login screen");
-        setLoadingSession(false);
-      }
-    }, 3000);
-
-    // 1. Verificar sessão atual
-    const getSession = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-           console.warn("Erro ao conectar com Supabase:", error.message);
-        }
-
-        if (data?.session?.user && mounted) {
-          // Buscar dados do perfil com tratamento de erro e maybeSingle para não quebrar se vazio
-          let userProfile = null;
-          try {
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', data.session.user.id)
-                .maybeSingle();
-            userProfile = profile;
-          } catch (e) {
-            console.warn("Erro ao buscar perfil no App.tsx", e);
-          }
-              
-          // Usa o perfil se existir, senão usa dados da sessão
-          const userData: User = {
-              id: data.session.user.id,
-              name: userProfile?.name || data.session.user.user_metadata?.name || 'Usuário',
-              email: userProfile?.email || data.session.user.email || '',
-              createdAt: userProfile?.created_at || new Date().toISOString(),
-              subscription: userProfile?.subscription || 'free'
-          };
-          
-          setCurrentUser(userData);
-        }
-      } catch (err) {
-        console.error("Erro crítico na inicialização do Supabase:", err);
-      } finally {
-        if (mounted) setLoadingSession(false);
-      }
-    };
-
-    getSession();
-
-    // 2. Ouvir mudanças na autenticação
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user && mounted) {
-         try {
-           const { data: profile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .maybeSingle();
-           
-           // Resiliência: Se perfil falhar, usa dados básicos da sessão
-           const userData: User = {
-              id: session.user.id,
-              name: profile?.name || session.user.user_metadata?.name || 'Usuário',
-              email: profile?.email || session.user.email || '',
-              createdAt: profile?.created_at || new Date().toISOString(),
-              subscription: profile?.subscription || 'free'
-           };
-
-           setCurrentUser(userData);
-         } catch (e) {
-           console.error("Erro ao sincronizar login:", e);
-           // Fallback crítico
-           setCurrentUser({
-              id: session.user.id,
-              name: session.user.user_metadata?.name || 'Usuário',
-              email: session.user.email || '',
-              createdAt: new Date().toISOString(),
-              subscription: 'free'
-           });
-         }
-      } else if (event === 'SIGNED_OUT' && mounted) {
-        setCurrentUser(null);
-      }
-    });
-    
-    // Tema
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setDarkMode(true);
-    }
-
-    return () => {
-      mounted = false;
-      clearTimeout(safetyTimeout);
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  // Check for Payment Success in URL
+  // Check for Payment Success in URL (Simulação Local)
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
-    if (query.get('status') === 'success' && currentUser) {
-      setTimeout(async () => {
-         // Atualiza o banco de dados (Isso idealmente seria via Webhook, mas aqui fazemos front-side para o MVP)
-         if (currentUser.subscription !== 'pro') {
-             try {
-                const { error } = await supabase
-                    .from('profiles')
-                    .update({ subscription: 'pro' })
-                    .eq('id', currentUser.id);
-
-                if (!error) {
-                    setCurrentUser({ ...currentUser, subscription: 'pro' });
-                    alert('Pagamento confirmado! Bem-vindo ao Aurora Pro.');
-                }
-             } catch (e) {
-                console.error("Erro ao atualizar assinatura:", e);
-             }
-         }
+    if (query.get('status') === 'success' && currentUser.subscription !== 'pro') {
+      setTimeout(() => {
+         setCurrentUser(prev => ({ ...prev, subscription: 'pro' }));
+         alert('Pagamento confirmado! Bem-vindo ao Aurora Pro.');
          window.history.replaceState({}, document.title, window.location.pathname);
       }, 500);
     }
-  }, [currentUser]);
+  }, []);
 
   useEffect(() => {
     if (darkMode) {
@@ -178,34 +72,18 @@ export default function App() {
     }
   }, [darkMode]);
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      setCurrentUser(null);
-      setShowPricing(false);
-      setActiveTab('dashboard');
-    } catch (e) {
-      console.error("Erro ao sair:", e);
+  const handleResetData = () => {
+    if (window.confirm("Isso apagará TODOS os seus dados salvos neste dispositivo. Tem certeza?")) {
+      localStorage.clear();
+      window.location.reload();
     }
   };
 
   const handleUpgrade = async () => {
-    if (!currentUser) return;
-    
-    // Simulação manual (remover em produção com Stripe real)
-    try {
-        const { error } = await supabase
-            .from('profiles')
-            .update({ subscription: 'pro' })
-            .eq('id', currentUser.id);
-
-        if (!error) {
-            setCurrentUser({ ...currentUser, subscription: 'pro' });
-            setShowPricing(false);
-        }
-    } catch (e) {
-        console.error("Erro upgrade manual:", e);
-    }
+    // Upgrade Local
+    setCurrentUser(prev => ({ ...prev, subscription: 'pro' }));
+    setShowPricing(false);
+    alert("Upgrade realizado com sucesso!");
   };
 
   const toggleTheme = () => setDarkMode(!darkMode);
@@ -222,28 +100,12 @@ export default function App() {
     { id: 'health', label: 'Saúde', icon: <HeartPulse size={20} />, isPro: true }, 
   ];
 
-  if (loadingSession) {
-      return (
-          <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
-              <div className="animate-pulse flex flex-col items-center gap-4">
-                  <Logo className="w-12 h-12" />
-                  <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Carregando Aurora...</p>
-                  <p className="text-slate-500 text-[9px] font-medium">Estabelecendo conexão segura...</p>
-              </div>
-          </div>
-      );
-  }
-
-  if (!currentUser) {
-    return <Auth onLogin={(user) => setCurrentUser(user)} />;
-  }
-
   const renderContent = () => {
     if (showPricing) {
       return <Pricing onUpgrade={handleUpgrade} onCancel={() => setShowPricing(false)} />;
     }
 
-    const storagePrefix = `aurora_${currentUser.email}_`;
+    const storagePrefix = `aurora_local_`; // Prefixo fixo para modo offline
     const userName = currentUser.name;
     
     switch (activeTab) {
@@ -288,7 +150,7 @@ export default function App() {
             <div>
               <span className="block text-xl font-bold bg-gradient-to-r from-indigo-500 to-pink-500 bg-clip-text text-transparent uppercase tracking-tight">Aurora</span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold truncate max-w-[120px]">{currentUser.name}</span>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold truncate max-w-[120px]">Modo Pessoal</span>
                   {currentUser.subscription === 'pro' && (
                       <span className="bg-gradient-to-r from-indigo-500 to-pink-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest">Pro</span>
                   )}
@@ -329,8 +191,10 @@ export default function App() {
                 {darkMode ? <Sun size={18} /> : <Moon size={18} />}
                 <span className="text-sm font-medium">{darkMode ? 'Claro' : 'Escuro'}</span>
              </button>
-             <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/10 text-rose-600 font-black uppercase text-[9px]">
-                <LogOut size={14} /> Sair
+             
+             {/* Botão de Reset ao invés de Logout */}
+             <button onClick={handleResetData} className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/10 text-rose-600 font-black uppercase text-[9px] hover:bg-rose-100 dark:hover:bg-rose-900/20 transition-all">
+                <Trash2 size={14} /> Resetar Dados
              </button>
           </div>
         </div>
