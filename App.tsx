@@ -44,6 +44,14 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
 
+    // Timeout de segurança: Se o Supabase demorar mais de 3 segundos, libera o app para a tela de login
+    const safetyTimeout = setTimeout(() => {
+      if (mounted && loadingSession) {
+        console.warn("Supabase session check timed out - forcing login screen");
+        setLoadingSession(false);
+      }
+    }, 3000);
+
     // 1. Verificar sessão atual
     const getSession = async () => {
       try {
@@ -114,6 +122,7 @@ export default function App() {
 
     return () => {
       mounted = false;
+      clearTimeout(safetyTimeout);
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -202,6 +211,7 @@ export default function App() {
               <div className="animate-pulse flex flex-col items-center gap-4">
                   <Logo className="w-12 h-12" />
                   <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Carregando Aurora...</p>
+                  <p className="text-slate-500 text-[9px] font-medium">Conectando ao servidor seguro...</p>
               </div>
           </div>
       );
