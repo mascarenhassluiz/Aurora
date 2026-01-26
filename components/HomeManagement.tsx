@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ShoppingItem } from '../types';
-import { ShoppingCart, Trash2, Scale } from 'lucide-react';
+import { ShoppingCart, Trash2, Scale, Info, X } from 'lucide-react';
 
 interface HomeManagementProps {
   storagePrefix: string;
@@ -32,6 +32,9 @@ export const HomeManagement = ({ storagePrefix, userName }: HomeManagementProps)
     const [newCategory, setNewCategory] = useState<ShoppingItem['category']>('grocery');
     const [prodA, setProdA] = useState({ price: '', qty: '' });
     const [prodB, setProdB] = useState({ price: '', qty: '' });
+
+    // Estado para controlar a visibilidade da dica do comparador
+    const [showComparatorInfo, setShowComparatorInfo] = useState(false);
 
     useEffect(() => {
         localStorage.setItem(listKey, JSON.stringify(items));
@@ -98,15 +101,37 @@ export const HomeManagement = ({ storagePrefix, userName }: HomeManagementProps)
 
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border dark:border-slate-700 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-sm font-black dark:text-white uppercase tracking-widest flex items-center gap-2">
-                      <Scale className="text-amber-500" size={18} /> Comparador Custo-Benefício
-                  </h3>
+                  <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setShowComparatorInfo(!showComparatorInfo)}>
+                      <h3 className="text-sm font-black dark:text-white uppercase tracking-widest flex items-center gap-2">
+                          <Scale className="text-amber-500" size={18} /> Comparador Custo-Benefício
+                      </h3>
+                      <Info size={14} className="text-slate-400 group-hover:text-amber-500 transition-colors" />
+                  </div>
                   {bestValue && (
                     <span className="bg-emerald-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest animate-pulse">
                       Produto {bestValue} vale mais a pena!
                     </span>
                   )}
                 </div>
+
+                {showComparatorInfo && (
+                    <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl flex gap-3 relative animate-scale-in">
+                        <button onClick={() => setShowComparatorInfo(false)} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-amber-500 transition-colors"><X size={14} /></button>
+                        <div className="bg-amber-100 dark:bg-amber-800/50 p-2 rounded-xl text-amber-600 dark:text-amber-400 h-fit">
+                            <Info size={16} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-amber-800 dark:text-amber-100 uppercase tracking-wide mb-1">Como usar?</p>
+                            <p className="text-[11px] text-amber-900/70 dark:text-amber-200/70 font-medium leading-relaxed">
+                                Use esta ferramenta quando estiver em dúvida entre dois produtos de tamanhos diferentes no mercado. 
+                                <br/>
+                                <strong>Exemplo:</strong> Uma Coca-Cola de 2L (R$ 9,00) vs 600ml (R$ 3,50). 
+                                Digite o preço e a quantidade (em ml ou g) para descobrir qual sai mais barato proporcionalmente.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className={`space-y-4 p-6 rounded-3xl transition-all border-2 ${bestValue === 'A' ? 'border-emerald-500 bg-emerald-50/10' : 'bg-slate-50 dark:bg-slate-900/40 border-transparent'}`}>
                         <p className="text-[10px] font-black uppercase text-slate-400">Produto A</p>

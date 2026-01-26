@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Biometrics, Meal } from '../types';
-import { UtensilsCrossed, Plus, Trash2, Calculator, Save, Database, Zap, Search, ChevronDown, ChevronUp, Edit3, X, LayoutList, AlertCircle, Utensils } from 'lucide-react';
+import { UtensilsCrossed, Plus, Trash2, Calculator, Save, Database, Zap, Search, ChevronDown, ChevronUp, Edit3, X, LayoutList, AlertCircle, Utensils, Info, Lightbulb } from 'lucide-react';
 
 interface NutritionProps {
   storagePrefix: string;
@@ -185,6 +185,23 @@ export const Nutrition = ({ storagePrefix, userName }: NutritionProps) => {
 
       {showBio && (
         <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border-2 border-indigo-500/20 shadow-xl animate-scale-in">
+          
+          {/* Tutorial / Dica da Calculadora */}
+          <div className="mb-8 p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-3xl flex items-start gap-4">
+            <div className="bg-indigo-100 dark:bg-indigo-800 p-2 rounded-xl text-indigo-600 dark:text-indigo-300 flex-shrink-0">
+               <Lightbulb size={20} />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-2">Entenda seus Dados</h4>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                 A <strong>Taxa Metabólica Basal (TMB)</strong> é o quanto seu corpo gasta de energia em repouso. 
+                 Nós multiplicamos isso pelo seu <strong>Nível de Atividade</strong> para achar seu gasto real diário.
+                 <br/><br/>
+                 Ao selecionar um <strong>Objetivo</strong>, o app ajusta automaticamente as calorias (ex: -500kcal para emagrecer) e a distribuição de macros.
+              </p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div className="space-y-1">
               <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Peso (kg)</label>
