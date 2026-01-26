@@ -63,14 +63,14 @@ export default function App() {
         }
 
         if (data?.session?.user && mounted) {
-          // Buscar dados do perfil com tratamento de erro
+          // Buscar dados do perfil com tratamento de erro e maybeSingle para não quebrar se vazio
           let userProfile = null;
           try {
             const { data: profile } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', data.session.user.id)
-                .single();
+                .maybeSingle();
             userProfile = profile;
           } catch (e) {
             console.warn("Erro ao buscar perfil no App.tsx", e);
@@ -104,7 +104,7 @@ export default function App() {
               .from('profiles')
               .select('*')
               .eq('id', session.user.id)
-              .single();
+              .maybeSingle();
            
            // Resiliência: Se perfil falhar, usa dados básicos da sessão
            const userData: User = {

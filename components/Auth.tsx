@@ -39,12 +39,31 @@ export const Auth = ({ onLogin }: AuthProps) => {
         if (error) throw error;
 
         if (data.user) {
-          // Busca perfil, mas não bloqueia se falhar (o App.tsx vai tentar novamente)
-          const { data: profile } = await supabase
+          // Busca perfil usando maybeSingle para não gerar erro se não existir
+          let { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', data.user.id)
-            .single();
+            .maybeSingle();
+
+          // AUTO-CORREÇÃO: Se o perfil não existir (conta antiga ou falha no trigger), cria agora.
+          if (!profile) {
+              console.log("Perfil ausente detectado. Criando perfil de recuperação...");
+              const { data: newProfile, error: createError } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: data.user.id,
+                    email: data.user.email,
+                    name: data.user.user_metadata?.name || 'Usuário',
+                    subscription: 'free'
+                })
+                .select()
+                .single();
+              
+              if (!createError) {
+                  profile = newProfile;
+              }
+          }
 
           const userToLog: User = {
              id: data.user.id,
@@ -59,14 +78,12 @@ export const Auth = ({ onLogin }: AuthProps) => {
 
       } else {
         // --- CADASTRO ---
-        // O Trigger no banco de dados (SUPABASE_SETUP.sql) vai criar o perfil automaticamente.
-        // Não precisamos fazer insert manual na tabela 'profiles' aqui.
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
           options: {
             data: {
-              name: formData.name // Isso vai para o raw_user_meta_data
+              name: formData.name 
             }
           }
         });
@@ -75,7 +92,14 @@ export const Auth = ({ onLogin }: AuthProps) => {
 
         if (data.user) {
            if (data.session) {
-             // Login automático após cadastro (se o email confirm não for obrigatório)
+             // Tenta garantir que o perfil existe antes de logar
+             await supabase.from('profiles').upsert({
+                 id: data.user.id,
+                 email: data.user.email,
+                 name: formData.name,
+                 subscription: 'free'
+             });
+
              const newUser: User = {
                 id: data.user.id,
                 name: formData.name,
@@ -85,7 +109,6 @@ export const Auth = ({ onLogin }: AuthProps) => {
              };
              onLogin(newUser);
            } else {
-            // E-mail confirm obrigatório
             setSuccessMsg('Cadastro realizado! Verifique seu e-mail para confirmar o link de acesso.');
             setIsLogin(true); 
            }
