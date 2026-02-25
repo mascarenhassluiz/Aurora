@@ -69,18 +69,23 @@ export const HomeManagement = ({ storagePrefix, userName }: HomeManagementProps)
                     <button onClick={addItem} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">Adicionar</button>
                 </div>
 
-                <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {categories.map(cat => {
                         const catItems = items.filter(i => i.category === cat);
                         if (catItems.length === 0) return null;
                         return (
-                            <div key={cat} className="min-w-[280px] bg-slate-50 dark:bg-slate-900/40 p-6 rounded-3xl border dark:border-slate-800 flex-shrink-0">
+                            <div key={cat} className="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-3xl border dark:border-slate-800 h-fit">
                                 <h4 className="text-[10px] font-black uppercase text-indigo-500 mb-4 tracking-widest">{CATEGORY_MAP[cat]}</h4>
                                 <div className="space-y-2">
                                     {catItems.map(item => (
                                         <div key={item.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between border dark:border-slate-700 group transition-all">
                                             <div className="flex items-center gap-3">
-                                                <input type="checkbox" checked={item.completed} onChange={() => setItems(items.map(i => i.id === item.id ? {...i, completed: !i.completed} : i))} className="w-5 h-5 rounded-lg border-2 border-slate-200" />
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={item.completed} 
+                                                    onChange={() => setItems(items.map(i => i.id === item.id ? {...i, completed: !i.completed} : i))} 
+                                                    className="w-5 h-5 rounded-lg border-2 border-slate-200 cursor-pointer" 
+                                                />
                                                 <span className={`text-xs font-bold transition-all ${item.completed ? 'line-through opacity-30' : 'dark:text-white'}`}>{item.name}</span>
                                             </div>
                                             <button onClick={() => setItems(items.filter(i => i.id !== item.id))} className="text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>

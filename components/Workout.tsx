@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { WorkoutSession, RunSession, TrainingSheet, TrainingExercise } from '../types';
 import { 
-  Dumbbell, Timer, Trash2, Activity, Plus, ClipboardList, X, Repeat, Coffee, ChevronRight, CheckCircle2, Trophy, Zap, Star, HelpCircle, TrendingUp, BarChart3, MapPin, Footprints, Heart, Bike, Gauge, Flame, ArrowRight
+  Dumbbell, Timer, Trash2, Activity, Plus, ClipboardList, X, Repeat, Coffee, ChevronRight, CheckCircle2, Trophy, Zap, Star, HelpCircle, TrendingUp, BarChart3, MapPin, Footprints, Heart, Bike, Gauge, Flame, ArrowRight, ArrowLeft
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 
@@ -56,6 +56,7 @@ export const Workout = ({ storagePrefix, userName }: WorkoutProps) => {
 
     // Chart State
     const [selectedGraphExercise, setSelectedGraphExercise] = useState<string>('');
+    const [focusedSheetId, setFocusedSheetId] = useState<string | null>(null);
 
     useEffect(() => {
         localStorage.setItem(liftingKey, JSON.stringify(liftingLog));
@@ -484,82 +485,163 @@ export const Workout = ({ storagePrefix, userName }: WorkoutProps) => {
 
              {activeSubTab === 'sheets' && (
                 <div className="space-y-8 animate-fade-in">
-                    <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 p-8 md:p-12 rounded-[3.5rem] text-white flex flex-col md:flex-row gap-8 items-center shadow-2xl border border-white/5 overflow-hidden relative">
-                        <Zap className="absolute right-[-40px] top-[-20px] w-64 h-64 text-indigo-500/10 rotate-12" />
-                        <div className="flex-1 space-y-3 relative z-10 text-center md:text-left">
-                          <h3 className="text-2xl font-black uppercase tracking-tight">Suas Fichas de Treino</h3>
-                          <p className="text-sm text-indigo-300 font-medium max-w-md">Organize suas divisões musculares e tenha foco total no dia de hoje.</p>
-                        </div>
-                        <div className="flex flex-col sm:flex-row w-full md:w-auto gap-3 relative z-10">
-                          <input type="text" value={newSheetName} onChange={(e) => setNewSheetName(e.target.value)} placeholder="Ex: Treino A - Peito" className="flex-1 sm:w-64 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 text-white font-bold outline-none border border-white/10 focus:border-indigo-400 transition-all" />
-                          <button onClick={createSheet} className="bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all flex-shrink-0">Criar Ficha</button>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {sheets.map(sheet => (
-                            <div key={sheet.id} className="bg-white dark:bg-slate-800 rounded-[3.5rem] border dark:border-slate-700 overflow-hidden shadow-sm group hover:shadow-2xl hover:scale-[1.01] transition-all">
-                                <div className="p-8 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-700 flex justify-between items-center">
-                                    <div className="flex items-center gap-4">
-                                      <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 dark:shadow-none"><ClipboardList size={24}/></div>
-                                      <h4 className="font-black dark:text-white uppercase tracking-tighter text-xl">{sheet.name}</h4>
-                                    </div>
-                                    <button onClick={() => setSheets(sheets.filter(s => s.id !== sheet.id))} className="text-slate-300 hover:text-rose-500 transition-all p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border dark:border-slate-700"><Trash2 size={20} /></button>
-                                </div>
-                                <div className="p-8 space-y-4">
-                                    {sheet.exercises.map(ex => (
-                                        <div key={ex.id} className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-[2.2rem] flex justify-between items-center border border-transparent hover:border-indigo-500/20 transition-all group/item">
-                                            <div className="flex items-center gap-4">
-                                              <div className="w-10 h-10 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 flex items-center justify-center text-indigo-500 shadow-sm">
-                                                <CheckCircle2 size={20} />
-                                              </div>
-                                              <div>
-                                                  <p className="font-black text-sm uppercase dark:text-white tracking-tight">{ex.name}</p>
-                                                  <div className="flex gap-4 mt-1">
-                                                    <span className="text-[10px] text-indigo-500 font-black uppercase tracking-widest flex items-center gap-1.5"><Repeat size={12}/> {ex.sets} x {ex.reps}</span>
-                                                    <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-1.5"><Coffee size={12}/> {ex.rest}s</span>
-                                                    {ex.load && <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest flex items-center gap-1.5"><Dumbbell size={12}/> {ex.load}kg</span>}
-                                                  </div>
-                                              </div>
-                                            </div>
-                                            <button onClick={() => setSheets(sheets.map(s => s.id === sheet.id ? {...s, exercises: s.exercises.filter(e => e.id !== ex.id)} : s))} className="text-slate-200 hover:text-rose-500 transition-all p-2"><X size={18}/></button>
-                                        </div>
-                                    ))}
-                                    
-                                    {editingSheetId === sheet.id ? (
-                                        <div className="mt-6 p-8 bg-slate-50 dark:bg-slate-900 rounded-[2.8rem] space-y-5 border-2 border-indigo-500/30 animate-scale-in">
-                                            <input type="text" placeholder="Nome do Exercício..." value={newExercise.name} onChange={e => setNewExercise({...newExercise, name: e.target.value})} className="w-full bg-white dark:bg-slate-800 rounded-2xl p-4 font-bold outline-none border dark:border-slate-700 focus:ring-2 ring-indigo-500/20" />
-                                            <div className="grid grid-cols-4 gap-2">
-                                                <div className="space-y-1">
-                                                  <label className="text-[9px] font-black uppercase text-slate-400 block text-center">Séries</label>
-                                                  <input type="text" value={newExercise.sets} onChange={e => setNewExercise({...newExercise, sets: e.target.value})} className="w-full bg-white dark:bg-slate-800 rounded-2xl p-3 text-center text-xs font-bold border dark:border-slate-700" />
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <label className="text-[9px] font-black uppercase text-slate-400 block text-center">Reps</label>
-                                                  <input type="text" value={newExercise.reps} onChange={e => setNewExercise({...newExercise, reps: e.target.value})} className="w-full bg-white dark:bg-slate-800 rounded-2xl p-3 text-center text-xs font-bold border dark:border-slate-700" />
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <label className="text-[9px] font-black uppercase text-slate-400 block text-center">Carga (kg)</label>
-                                                  <input type="text" value={newExercise.load} onChange={e => setNewExercise({...newExercise, load: e.target.value})} className="w-full bg-white dark:bg-slate-800 rounded-2xl p-3 text-center text-xs font-bold border dark:border-slate-700" />
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <label className="text-[9px] font-black uppercase text-slate-400 block text-center">Descanso(s)</label>
-                                                  <input type="text" value={newExercise.rest} onChange={e => setNewExercise({...newExercise, rest: e.target.value})} className="w-full bg-white dark:bg-slate-800 rounded-2xl p-3 text-center text-xs font-bold border dark:border-slate-700" />
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                              <button onClick={() => addExerciseToSheet(sheet.id)} className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg">Confirmar</button>
-                                              <button onClick={() => setEditingSheetId(null)} className="px-6 bg-slate-200 dark:bg-slate-700 rounded-2xl text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">X</button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <button onClick={() => setEditingSheetId(sheet.id)} className="w-full py-5 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 hover:border-indigo-500 hover:text-indigo-500 hover:bg-indigo-50/10 transition-all flex items-center justify-center gap-3 mt-6">
-                                            <Plus size={18} /> Adicionar Exercício
-                                        </button>
-                                    )}
-                                </div>
+                    {!focusedSheetId && (
+                        <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 p-8 md:p-12 rounded-[3.5rem] text-white flex flex-col md:flex-row gap-8 items-center shadow-2xl border border-white/5 overflow-hidden relative">
+                            <Zap className="absolute right-[-40px] top-[-20px] w-64 h-64 text-indigo-500/10 rotate-12" />
+                            <div className="flex-1 space-y-3 relative z-10 text-center md:text-left">
+                            <h3 className="text-2xl font-black uppercase tracking-tight">Suas Fichas de Treino</h3>
+                            <p className="text-sm text-indigo-300 font-medium max-w-md">Organize suas divisões musculares e tenha foco total no dia de hoje.</p>
                             </div>
-                        ))}
+                            <div className="flex flex-col sm:flex-row w-full md:w-auto gap-3 relative z-10">
+                            <input type="text" value={newSheetName} onChange={(e) => setNewSheetName(e.target.value)} placeholder="Ex: Treino A - Peito" className="flex-1 sm:w-64 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 text-white font-bold outline-none border border-white/10 focus:border-indigo-400 transition-all" />
+                            <button onClick={createSheet} className="bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all flex-shrink-0">Criar Ficha</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {focusedSheetId && (
+                        <button 
+                            onClick={() => setFocusedSheetId(null)} 
+                            className="flex items-center gap-2 text-slate-500 hover:text-indigo-500 font-black uppercase text-[10px] tracking-widest transition-colors mb-4 pl-2"
+                        >
+                            <ArrowLeft size={16} /> Voltar para todas as fichas
+                        </button>
+                    )}
+
+                    <div className={focusedSheetId ? "grid grid-cols-1" : "grid grid-cols-1 xl:grid-cols-2 gap-8"}>
+                        {sheets
+                            .filter(sheet => focusedSheetId ? sheet.id === focusedSheetId : true)
+                            .map(sheet => {
+                            const totalExercises = sheet.exercises.length;
+                            const totalSets = sheet.exercises.reduce((acc, ex) => acc + (Number(ex.sets) || 0), 0);
+                            const estTime = Math.round((totalSets * 2) + totalExercises);
+
+                            return (
+                                <div key={sheet.id} className={`bg-white dark:bg-slate-800 rounded-[3rem] border dark:border-slate-700 overflow-hidden shadow-sm hover:shadow-xl transition-all flex flex-col ${focusedSheetId ? 'min-h-[60vh]' : 'h-full'}`}>
+                                    {/* Header */}
+                                    <div className="p-8 pb-6 flex justify-between items-start">
+                                        <div className="flex items-start gap-5">
+                                            <div className="w-14 h-14 bg-indigo-100 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                                <ClipboardList size={28} />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black dark:text-white uppercase tracking-tight text-2xl leading-none mb-2">{sheet.name}</h4>
+                                                <div className="flex items-center gap-3 text-[10px] font-bold uppercase text-slate-400 tracking-widest">
+                                                    <span className="flex items-center gap-1"><Dumbbell size={12}/> {totalExercises} Exercícios</span>
+                                                    <span className="flex items-center gap-1"><Timer size={12}/> ~{estTime} min</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {!focusedSheetId && (
+                                                <button 
+                                                    onClick={() => setFocusedSheetId(sheet.id)}
+                                                    className="text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-indigo-100 dark:border-indigo-500/20"
+                                                >
+                                                    Focar
+                                                </button>
+                                            )}
+                                            <button 
+                                                onClick={() => setSheets(sheets.filter(s => s.id !== sheet.id))} 
+                                                className="text-slate-300 hover:text-rose-500 transition-colors p-2"
+                                                title="Excluir ficha"
+                                            >
+                                                <Trash2 size={20} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Exercise List */}
+                                    <div className="px-8 flex-1">
+                                        {sheet.exercises.length > 0 ? (
+                                            <div className="space-y-3">
+                                                {/* Table Header */}
+                                                <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-100 dark:border-slate-700/50">
+                                                    <div className="col-span-5">Exercício</div>
+                                                    <div className="col-span-3 text-center">Séries/Reps</div>
+                                                    <div className="col-span-2 text-center">Carga</div>
+                                                    <div className="col-span-2 text-center">Desc.</div>
+                                                </div>
+                                                
+                                                {/* Rows */}
+                                                <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                                                    {sheet.exercises.map((ex, idx) => (
+                                                        <div key={ex.id} className="grid grid-cols-12 gap-2 items-center p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl group hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-colors relative">
+                                                            <div className="col-span-5 flex items-center gap-3">
+                                                                <span className="text-[10px] font-black text-slate-300 w-4">{idx + 1}</span>
+                                                                <span className="text-xs font-bold dark:text-slate-200 truncate" title={ex.name}>{ex.name}</span>
+                                                            </div>
+                                                            <div className="col-span-3 text-center">
+                                                                <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded-lg whitespace-nowrap">
+                                                                    {ex.sets} x {ex.reps}
+                                                                </span>
+                                                            </div>
+                                                            <div className="col-span-2 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                                                {ex.load ? `${ex.load}kg` : '-'}
+                                                            </div>
+                                                            <div className="col-span-2 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                                                {ex.rest}s
+                                                            </div>
+                                                            
+                                                            {/* Delete Action (Hover) */}
+                                                            <button 
+                                                                onClick={() => setSheets(sheets.map(s => s.id === sheet.id ? {...s, exercises: s.exercises.filter(e => e.id !== ex.id)} : s))}
+                                                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white dark:bg-slate-800 text-rose-500 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-all scale-90 hover:scale-100"
+                                                            >
+                                                                <X size={14} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center py-12 text-slate-300 dark:text-slate-600 border-2 border-dashed border-slate-100 dark:border-slate-700/50 rounded-3xl">
+                                                <Dumbbell size={32} className="mb-3 opacity-50" />
+                                                <p className="text-xs font-bold uppercase tracking-widest">Sem exercícios</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Footer / Add Form */}
+                                    <div className="p-8 pt-6 mt-auto">
+                                        {editingSheetId === sheet.id ? (
+                                            <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-3xl border border-indigo-100 dark:border-indigo-500/20 animate-scale-in">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">Novo Exercício</span>
+                                                    <button onClick={() => setEditingSheetId(null)} className="text-slate-400 hover:text-slate-600"><X size={14}/></button>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    <input 
+                                                        autoFocus
+                                                        type="text" 
+                                                        placeholder="Nome (ex: Supino Reto)" 
+                                                        value={newExercise.name} 
+                                                        onChange={e => setNewExercise({...newExercise, name: e.target.value})} 
+                                                        className="w-full bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-xs font-bold outline-none border border-slate-200 dark:border-slate-700 focus:border-indigo-500" 
+                                                    />
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        <input type="text" placeholder="Séries" value={newExercise.sets} onChange={e => setNewExercise({...newExercise, sets: e.target.value})} className="bg-white dark:bg-slate-800 rounded-xl p-3 text-center text-xs font-bold outline-none border border-slate-200 dark:border-slate-700 focus:border-indigo-500" />
+                                                        <input type="text" placeholder="Reps" value={newExercise.reps} onChange={e => setNewExercise({...newExercise, reps: e.target.value})} className="bg-white dark:bg-slate-800 rounded-xl p-3 text-center text-xs font-bold outline-none border border-slate-200 dark:border-slate-700 focus:border-indigo-500" />
+                                                        <input type="text" placeholder="Carga" value={newExercise.load} onChange={e => setNewExercise({...newExercise, load: e.target.value})} className="bg-white dark:bg-slate-800 rounded-xl p-3 text-center text-xs font-bold outline-none border border-slate-200 dark:border-slate-700 focus:border-indigo-500" />
+                                                        <input type="text" placeholder="Desc." value={newExercise.rest} onChange={e => setNewExercise({...newExercise, rest: e.target.value})} className="bg-white dark:bg-slate-800 rounded-xl p-3 text-center text-xs font-bold outline-none border border-slate-200 dark:border-slate-700 focus:border-indigo-500" />
+                                                    </div>
+                                                    <button onClick={() => addExerciseToSheet(sheet.id)} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">
+                                                        Adicionar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <button 
+                                                onClick={() => setEditingSheetId(sheet.id)} 
+                                                className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-400 hover:border-indigo-500 hover:text-indigo-500 hover:bg-indigo-50/10 transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest"
+                                            >
+                                                <Plus size={16} /> Adicionar Exercício
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
              )}
